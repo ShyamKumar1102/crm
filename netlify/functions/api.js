@@ -134,6 +134,24 @@ app.get('/api/auth/me', async (req, res) => {
   }
 });
 
+app.get('/api/conversations', async (req, res) => {
+  res.json([]);
+});
+
+app.get('/api/whatsapp/verification-status', (req, res) => {
+  res.json({
+    meta_verification_status: 'pending',
+    webhook_verified: false,
+    whatsapp_number_status: 'pending',
+    can_send_messages: false,
+    phone_number: 'Not configured',
+    business_account_id: 'Not configured',
+    last_message_received_at: null,
+    blocking_issues: [],
+    non_blocking_issues: ['Configure WhatsApp Business API']
+  });
+});
+
 exports.handler = async (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false;
   
