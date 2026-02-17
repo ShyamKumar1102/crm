@@ -1,8 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const dbService = require('../services/devDatabaseService');
+const Agent = require('../models/Agent.model');
 const RefreshToken = require('../models/RefreshToken.model');
 const { auth } = require('../middleware/auth');
 const {
@@ -14,7 +13,6 @@ const {
 
 const router = express.Router();
 
-// In-memory OTP storage (use Redis in production)
 const otpStore = {};
 
 // Send OTP for phone/email verification
@@ -106,7 +104,7 @@ router.post('/login',
       }
 
       // Find agent by phone
-      const agent = await dbService.getAgentByPhone(phone);
+      const agent = await Agent.findOne({ phone });
       if (!agent) {
         return res.status(404).json({ message: 'Account not found' });
       }
@@ -114,15 +112,14 @@ router.post('/login',
       // Clear OTP
       delete otpStore[phone];
 
-      // Generate access and refresh tokens
       const accessToken = jwt.sign(
-        { agentId: agent.agentId, phone: agent.phone },
+        { agentId: agent._id, phone: agent.phone },
         process.env.JWT_SECRET,
         { expiresIn: '15m' }
       );
 
       const refreshToken = jwt.sign(
-        { agentId: agent.agentId, phone: agent.phone },
+        { agentId: agent._id, phone: agent.phone },
         process.env.JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -132,16 +129,15 @@ router.post('/login',
         accessToken,
         refreshToken,
         agent: {
-          agentId: agent.agentId,
+          agentId: agent._id,
           name: agent.name,
           phone: agent.phone
         }
       });
 
-      // Store refresh token in database (non-blocking)
       RefreshToken.create({
         token: refreshToken,
-        userId: agent.agentId,
+        userId: agent._id,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       }).catch(err => console.warn('RefreshToken save failed:', err.message));
     } else {
@@ -152,13 +148,13 @@ router.post('/login',
       }
 
       console.log('Looking up agent by email:', email);
-      const agent = await dbService.getAgentByEmail(email);
+      const agent = await Agent.findOne({ email });
       if (!agent) {
         console.log('Agent not found for email:', email);
         return res.status(404).json({ message: 'Account not found' });
       }
 
-      console.log('Agent found:', { agentId: agent.agentId, email: agent.email });
+      console.log('Agent found:', { agentId: agent._id, email: agent.email });
 
       if (!agent.passwordHash) {
         console.log('No password hash found');
@@ -173,15 +169,14 @@ router.post('/login',
         return res.status(401).json({ message: 'Invalid password' });
       }
 
-      // Generate access and refresh tokens
       const accessToken = jwt.sign(
-        { agentId: agent.agentId, email: agent.email },
+        { agentId: agent._id, email: agent.email },
         process.env.JWT_SECRET,
         { expiresIn: '15m' }
       );
 
       const refreshToken = jwt.sign(
-        { agentId: agent.agentId, email: agent.email },
+        { agentId: agent._id, email: agent.email },
         process.env.JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -192,17 +187,16 @@ router.post('/login',
         accessToken,
         refreshToken,
         agent: {
-          agentId: agent.agentId,
+          agentId: agent._id,
           name: agent.name,
           email: agent.email,
           role: agent.role
         }
       });
 
-      // Store refresh token in database (non-blocking)
       RefreshToken.create({
         token: refreshToken,
-        userId: agent.agentId,
+        userId: agent._id,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       }).catch(err => console.warn('RefreshToken save failed:', err.message));
     }
@@ -236,14 +230,12 @@ router.post('/register',
         return res.status(400).json({ message: 'Name and phone number are required' });
       }
 
-      // Check if phone already exists
-      const existingAgent = await dbService.getAgentByPhone(phone);
+      const existingAgent = await Agent.findOne({ phone });
       if (existingAgent) {
         return res.status(400).json({ message: 'Phone number already registered' });
       }
 
-      // Create agent without password
-      const agent = await dbService.createAgent({
+      const agent = await Agent.create({
         name,
         phone,
         businessName,
@@ -255,7 +247,7 @@ router.post('/register',
       });
 
       const token = jwt.sign(
-        { agentId: agent.agentId, phone: agent.phone },
+        { agentId: agent._id, phone: agent.phone },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
@@ -264,7 +256,7 @@ router.post('/register',
         message: 'Registration successful',
         token,
         agent: {
-          agentId: agent.agentId,
+          agentId: agent._id,
           name: agent.name,
           phone: agent.phone
         }
@@ -279,17 +271,16 @@ router.post('/register',
         return res.status(400).json({ message: 'Business name is required' });
       }
 
-      const existingAgent = await dbService.getAgentByEmail(email);
+      const existingAgent = await Agent.findOne({ email });
       if (existingAgent) {
         return res.status(400).json({ message: 'Email already registered' });
       }
 
-      // Generate OTP for email verification
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       console.log(`📧 Registration OTP for ${email}: ${otp}`);
 
       const hashedPassword = await bcrypt.hash(password, 10);
-      const agent = await dbService.createAgent({
+      const agent = await Agent.create({
         name,
         email,
         phone,
@@ -303,7 +294,7 @@ router.post('/register',
       });
 
       const token = jwt.sign(
-        { agentId: agent.agentId, email: agent.email },
+        { agentId: agent._id, email: agent.email },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
@@ -312,7 +303,7 @@ router.post('/register',
         message: 'Registration successful',
         token,
         agent: {
-          agentId: agent.agentId,
+          agentId: agent._id,
           name: agent.name,
           email: agent.email,
           businessName: agent.businessName
@@ -352,8 +343,7 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    // Check if user exists
-    const agent = await dbService.getAgentByEmail(email);
+    const agent = await Agent.findOne({ email });
     if (!agent) {
       return res.status(404).json({ error: 'No account found with this email' });
     }
@@ -433,15 +423,14 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired reset code' });
     }
 
-    // Get user
-    const agent = await dbService.getAgentByEmail(email);
+    const agent = await Agent.findOne({ email });
     if (!agent) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Update password
     const passwordHash = await bcrypt.hash(newPassword, 12);
-    await dbService.updateAgent(agent.agentId, { passwordHash });
+    agent.passwordHash = passwordHash;
+    await agent.save();
 
     // Clean up OTP
     delete otpStore[`reset_${email}`];
