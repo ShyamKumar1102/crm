@@ -17,8 +17,10 @@ async function connectToDatabase() {
   if (cachedDb && mongoose.connection.readyState === 1) return cachedDb;
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI not defined');
   cachedDb = await mongoose.connect(process.env.MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 45000,
+    maxPoolSize: 10,
+    minPoolSize: 2
   });
   return cachedDb;
 }

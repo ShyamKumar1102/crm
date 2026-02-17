@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../config/api';
 
 // Configure axios base URL and timeout
 axios.defaults.baseURL = API_BASE_URL;
-axios.defaults.timeout = 10000;
+axios.defaults.timeout = 30000;
 
 console.log('API Base URL:', API_BASE_URL);
 
@@ -107,7 +107,7 @@ export const AuthProvider = ({ children }) => {
         ...(method === 'email' ? { password: credential } : { otp: credential }),
         method 
       }, {
-        timeout: 10000
+        timeout: 30000
       });
       console.log('Login response:', response.data);
       const { accessToken, refreshToken, agent } = response.data;
