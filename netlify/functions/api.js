@@ -26,7 +26,10 @@ const Agent = mongoose.models.Agent || mongoose.model('Agent', agentSchema);
 
 async function connectDB() {
   if (cachedDb && mongoose.connection.readyState === 1) return cachedDb;
-  cachedDb = await mongoose.connect(process.env.MONGODB_URI);
+  cachedDb = await mongoose.connect(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 10000
+  });
   return cachedDb;
 }
 
@@ -133,10 +136,18 @@ app.get('/api/auth/me', async (req, res) => {
 
 exports.handler = async (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  try {
-    await connectDB();
-  } catch (err) {
-    console.error('DB error:', err);
+  
+  if (!cachedDb) {
+    try {
+      await connectDB();
+    } catch (err) {
+      console.error('DB connection failed:', err.message);
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: 'Database connection failed' })
+      };
+    }
   }
+  
   return serverless(app)(event, context);
 };
