@@ -61,9 +61,8 @@ const validateRegistration = [
     .withMessage('Invalid email address'),
   body('password')
     .optional()
-    .isLength({ min: 8 })
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('Password must be at least 8 characters with uppercase, lowercase, and number'),
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters'),
   body('name')
     .optional()
     .trim()
