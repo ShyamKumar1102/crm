@@ -49,26 +49,41 @@ const Agent = mongoose.models.Agent || mongoose.model('Agent', agentSchema);
 // Auth routes inline
 app.post('/api/auth/login', async (req, res) => {
   try {
+    console.log('Login request received:', req.body);
     const { email, password, method } = req.body;
 
     if (!email || !password) {
+      console.log('Missing email or password');
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
+    console.log('Finding agent:', email);
     const agent = await Agent.findOne({ email });
     if (!agent) {
+      console.log('Agent not found');
       return res.status(404).json({ message: 'Account not found' });
     }
 
+    console.log('Agent found:', agent._id);
     if (!agent.passwordHash) {
+      console.log('No password hash');
       return res.status(400).json({ message: 'Invalid account' });
     }
 
+    console.log('Comparing passwords');
     const isValidPassword = await bcrypt.compare(password, agent.passwordHash);
+    console.log('Password valid:', isValidPassword);
+    
     if (!isValidPassword) {
       return res.status(401).json({ message: 'Invalid password' });
     }
 
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET not set!');
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+
+    console.log('Generating tokens');
     const accessToken = jwt.sign(
       { agentId: agent._id, email: agent.email },
       process.env.JWT_SECRET,
@@ -81,6 +96,7 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    console.log('Login successful');
     res.json({
       message: 'Login successful',
       accessToken,
@@ -93,7 +109,7 @@ app.post('/api/auth/login', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', error.message, error.stack);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 });
@@ -231,10 +247,20 @@ app.use((err, req, res, next) => {
 
 exports.handler = async (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false;
+  
+  console.log('Function invoked:', event.path);
+  console.log('Environment check:', {
+    hasMongoUri: !!process.env.MONGODB_URI,
+    hasJwtSecret: !!process.env.JWT_SECRET,
+    nodeEnv: process.env.NODE_ENV
+  });
+  
   try {
     await connectToDatabase();
+    console.log('Database connected');
   } catch (error) {
-    console.error('Database connection error:', error);
+    console.error('Database connection error:', error.message);
   }
+  
   return serverless(app)(event, context);
 };
