@@ -1,7 +1,17 @@
 [build]
-  base = "frontend"
   command = "npm run build"
-  publish = "dist"
+  publish = "frontend/dist"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/webhooks/*"
+  to = "/.netlify/functions/api/webhooks/:splat"
+  status = 200
 
 [[redirects]]
   from = "/*"

@@ -5,7 +5,10 @@
     "install:frontend": "cd frontend && npm install",
     "install:backend": "cd backend && npm install",
     "build:frontend": "cd frontend && npm run build",
-    "build": "npm run install:frontend && npm run install:backend && npm run build:frontend"
+    "build": "npm install && npm run install:frontend && npm run install:backend && npm run build:frontend",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "test:build": "npm run build && echo Build successful!"
   },
   "dependencies": {
     "serverless-http": "^3.2.0",
@@ -17,10 +20,13 @@
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "express-validator": "^7.3.1",
+    "express-rate-limit": "^6.10.0",
     "axios": "^1.6.0",
     "uuid": "^9.0.0",
     "winston": "^3.11.0",
     "joi": "^17.11.0",
+    "node-cron": "^3.0.3",
+    "socket.io": "^4.7.2",
     "@aws-sdk/client-dynamodb": "^3.981.0",
     "@aws-sdk/lib-dynamodb": "^3.981.0"
   }
