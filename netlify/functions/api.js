@@ -135,7 +135,16 @@ app.get('/api/auth/me', async (req, res) => {
 });
 
 app.get('/api/conversations', async (req, res) => {
-  res.json([]);
+  res.json({ conversations: [], total: 0 });
+});
+
+app.get('/api/analytics/overview', (req, res) => {
+  res.json({
+    totalConversations: 0,
+    activeConversations: 0,
+    totalMessages: 0,
+    responseRate: 0
+  });
 });
 
 app.get('/api/whatsapp/verification-status', (req, res) => {
