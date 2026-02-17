@@ -5,13 +5,13 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/api/api/:splat"
+  to = "/.netlify/functions/api"
   status = 200
   force = true
 
 [[redirects]]
   from = "/webhooks/*"
-  to = "/.netlify/functions/api/webhooks/:splat"
+  to = "/.netlify/functions/api"
   status = 200
   force = true
 
