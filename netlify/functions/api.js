@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
@@ -25,31 +27,186 @@ async function connectToDatabase() {
   return cachedDb;
 }
 
-// Load models first
-require('../../backend/src/models/Agent.model');
-require('../../backend/src/models/RefreshToken.model');
+// Define Agent model inline
+const agentSchema = new mongoose.Schema({
+  name: String,
+  email: { type: String, unique: true, sparse: true },
+  phone: { type: String, unique: true, sparse: true },
+  passwordHash: String,
+  businessName: String,
+  businessType: String,
+  businessAddress: String,
+  businessPhone: String,
+  website: String,
+  role: { type: String, default: 'agent' },
+  method: { type: String, enum: ['email', 'phone'], default: 'email' },
+  isActive: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+});
 
-const authRoutes = require('../../backend/src/routes/auth');
-const conversationsRoutes = require('../../backend/src/routes/conversations');
-const messagesRoutes = require('../../backend/src/routes/messages');
-const webhookRoutes = require('../../backend/src/routes/webhook.routes');
-const whatsappRoutes = require('../../backend/src/routes/whatsapp.routes');
-const templateRoutes = require('../../backend/src/routes/template.routes');
-const analyticsRoutes = require('../../backend/src/routes/analytics');
-const aiRoutes = require('../../backend/src/routes/ai');
-const mobileRoutes = require('../../backend/src/routes/mobile');
-const gdprRoutes = require('../../backend/src/routes/gdpr');
+const Agent = mongoose.models.Agent || mongoose.model('Agent', agentSchema);
 
-app.use('/api/auth', authRoutes);
-app.use('/api/conversations', conversationsRoutes);
-app.use('/api/messages', messagesRoutes);
-app.use('/webhooks', webhookRoutes);
-app.use('/api/whatsapp', whatsappRoutes);
-app.use('/api/templates', templateRoutes);
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api/ai', aiRoutes);
-app.use('/api/mobile', mobileRoutes);
-app.use('/api/gdpr', gdprRoutes);
+// Auth routes inline
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password, method } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    const agent = await Agent.findOne({ email });
+    if (!agent) {
+      return res.status(404).json({ message: 'Account not found' });
+    }
+
+    if (!agent.passwordHash) {
+      return res.status(400).json({ message: 'Invalid account' });
+    }
+
+    const isValidPassword = await bcrypt.compare(password, agent.passwordHash);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Invalid password' });
+    }
+
+    const accessToken = jwt.sign(
+      { agentId: agent._id, email: agent.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    const refreshToken = jwt.sign(
+      { agentId: agent._id, email: agent.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Login successful',
+      accessToken,
+      refreshToken,
+      agent: {
+        agentId: agent._id,
+        name: agent.name,
+        email: agent.email,
+        role: agent.role
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, password, phone, businessName, businessType, businessAddress, businessPhone, website } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, and password are required' });
+    }
+
+    if (!businessName) {
+      return res.status(400).json({ message: 'Business name is required' });
+    }
+
+    const existingAgent = await Agent.findOne({ email });
+    if (existingAgent) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const agent = await Agent.create({
+      name,
+      email,
+      phone,
+      passwordHash: hashedPassword,
+      businessName,
+      businessType,
+      businessAddress,
+      businessPhone,
+      website,
+      method: 'email'
+    });
+
+    const token = jwt.sign(
+      { agentId: agent._id, email: agent.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.status(201).json({
+      message: 'Registration successful',
+      token,
+      agent: {
+        agentId: agent._id,
+        name: agent.name,
+        email: agent.email,
+        businessName: agent.businessName
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const agent = await Agent.findById(decoded.agentId);
+    
+    if (!agent) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      agent: {
+        agentId: agent._id,
+        email: agent.email,
+        phone: agent.phone,
+        name: agent.name,
+        role: agent.role
+      }
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const agent = await Agent.findById(decoded.agentId);
+    
+    if (!agent) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      agent: {
+        agentId: agent._id,
+        email: agent.email,
+        phone: agent.phone,
+        name: agent.name,
+        role: agent.role
+      }
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
 
 app.get('/api/health', (req, res) => {
   res.json({ 
