@@ -25,6 +25,10 @@ async function connectToDatabase() {
   return cachedDb;
 }
 
+// Load models first
+require('../../backend/src/models/Agent.model');
+require('../../backend/src/models/RefreshToken.model');
+
 const authRoutes = require('../../backend/src/routes/auth');
 const conversationsRoutes = require('../../backend/src/routes/conversations');
 const messagesRoutes = require('../../backend/src/routes/messages');
